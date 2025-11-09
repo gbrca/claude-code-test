@@ -188,41 +188,51 @@ function createVehicle() {
     chassisBody.position.set(0, 4, 0);
     chassisBody.angularVelocity.set(0, 0, 0);
 
+    // IMPORTANT: Add chassis to world first
+    world.addBody(chassisBody);
+
     // Create vehicle
     vehicle = new CANNON.RaycastVehicle({
         chassisBody: chassisBody
     });
 
-    // Wheel configuration
-    const wheelOptions = {
+    // Wheel configuration - create base options
+    const createWheelOptions = () => ({
         radius: vehicleParams.wheelRadius,
         directionLocal: new CANNON.Vec3(0, -1, 0),
         suspensionStiffness: 30,
         suspensionRestLength: 0.3,
-        frictionSlip: 1.4,
+        frictionSlip: 2.5,
         dampingRelaxation: 2.3,
         dampingCompression: 4.4,
         maxSuspensionForce: 100000,
         rollInfluence: 0.01,
         axleLocal: new CANNON.Vec3(-1, 0, 0),
-        chassisConnectionPointLocal: new CANNON.Vec3(1, 1, 1),
+        chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 0),
         maxSuspensionTravel: 0.3,
         customSlidingRotationalSpeed: -30,
         useCustomSlidingRotationalSpeed: true
-    };
+    });
 
-    // Add wheels
-    wheelOptions.chassisConnectionPointLocal.set(-vehicleParams.chassisWidth/2 + 0.3, 0, vehicleParams.chassisLength/2 - 0.5);
-    vehicle.addWheel(wheelOptions);
+    // Add wheels - Front left
+    const wheelFrontLeft = createWheelOptions();
+    wheelFrontLeft.chassisConnectionPointLocal.set(-vehicleParams.chassisWidth/2 + 0.3, 0, vehicleParams.chassisLength/2 - 0.5);
+    vehicle.addWheel(wheelFrontLeft);
 
-    wheelOptions.chassisConnectionPointLocal.set(vehicleParams.chassisWidth/2 - 0.3, 0, vehicleParams.chassisLength/2 - 0.5);
-    vehicle.addWheel(wheelOptions);
+    // Front right
+    const wheelFrontRight = createWheelOptions();
+    wheelFrontRight.chassisConnectionPointLocal.set(vehicleParams.chassisWidth/2 - 0.3, 0, vehicleParams.chassisLength/2 - 0.5);
+    vehicle.addWheel(wheelFrontRight);
 
-    wheelOptions.chassisConnectionPointLocal.set(-vehicleParams.chassisWidth/2 + 0.3, 0, -vehicleParams.chassisLength/2 + 0.5);
-    vehicle.addWheel(wheelOptions);
+    // Rear left
+    const wheelRearLeft = createWheelOptions();
+    wheelRearLeft.chassisConnectionPointLocal.set(-vehicleParams.chassisWidth/2 + 0.3, 0, -vehicleParams.chassisLength/2 + 0.5);
+    vehicle.addWheel(wheelRearLeft);
 
-    wheelOptions.chassisConnectionPointLocal.set(vehicleParams.chassisWidth/2 - 0.3, 0, -vehicleParams.chassisLength/2 + 0.5);
-    vehicle.addWheel(wheelOptions);
+    // Rear right
+    const wheelRearRight = createWheelOptions();
+    wheelRearRight.chassisConnectionPointLocal.set(vehicleParams.chassisWidth/2 - 0.3, 0, -vehicleParams.chassisLength/2 + 0.5);
+    vehicle.addWheel(wheelRearRight);
 
     vehicle.addToWorld(world);
 
@@ -258,6 +268,10 @@ function createVehicle() {
     // Store references
     chassisBody.threemesh = chassisMesh;
     vehicle.wheelMeshes = wheelMeshes;
+
+    console.log('Vehicle created successfully');
+    console.log('Chassis mass:', chassisBody.mass);
+    console.log('Number of wheels:', vehicle.wheelInfos.length);
 }
 
 function setupEventListeners() {
@@ -294,6 +308,14 @@ function resetVehicle() {
     chassisBody.quaternion.set(0, 0, 0, 1);
     chassisBody.velocity.set(0, 0, 0);
     chassisBody.angularVelocity.set(0, 0, 0);
+
+    // Reset wheel rotations
+    for (let i = 0; i < vehicle.wheelInfos.length; i++) {
+        vehicle.wheelInfos[i].worldTransform.position.setZero();
+        vehicle.wheelInfos[i].worldTransform.quaternion.set(0, 0, 0, 1);
+    }
+
+    console.log('Vehicle reset');
 }
 
 function updateVehicle() {
@@ -302,24 +324,26 @@ function updateVehicle() {
     const brakeForce = vehicleParams.brakeForce;
 
     // Reset forces
+    vehicle.applyEngineForce(0, 0);
+    vehicle.applyEngineForce(0, 1);
+    vehicle.applyEngineForce(0, 2);
+    vehicle.applyEngineForce(0, 3);
+
     vehicle.setBrake(0, 0);
     vehicle.setBrake(0, 1);
     vehicle.setBrake(0, 2);
     vehicle.setBrake(0, 3);
 
-    // Forward/Backward
+    // Forward/Backward - Apply force to rear wheels (index 2 and 3)
     if (keys['w'] || keys['arrowup']) {
-        vehicle.applyEngineForce(-maxForce, 2);
-        vehicle.applyEngineForce(-maxForce, 3);
-    } else if (keys['s'] || keys['arrowdown']) {
         vehicle.applyEngineForce(maxForce, 2);
         vehicle.applyEngineForce(maxForce, 3);
-    } else {
-        vehicle.applyEngineForce(0, 2);
-        vehicle.applyEngineForce(0, 3);
+    } else if (keys['s'] || keys['arrowdown']) {
+        vehicle.applyEngineForce(-maxForce, 2);
+        vehicle.applyEngineForce(-maxForce, 3);
     }
 
-    // Steering
+    // Steering - Apply to front wheels (index 0 and 1)
     if (keys['a'] || keys['arrowleft']) {
         vehicle.setSteeringValue(maxSteerVal, 0);
         vehicle.setSteeringValue(maxSteerVal, 1);
@@ -406,7 +430,8 @@ function updateCamera() {
 }
 
 function updatePhysics() {
-    world.step(1 / 60);
+    const timeStep = 1 / 60;
+    world.step(timeStep);
 
     // Update dynamic objects
     scene.traverse((object) => {
