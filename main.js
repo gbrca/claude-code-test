@@ -248,18 +248,21 @@ function createVehicle() {
     scene.add(chassisMesh);
 
     // Create Three.js meshes for wheels
+    // Rotate the geometry itself so it's oriented correctly
     const wheelGeometry = new THREE.CylinderGeometry(
         vehicleParams.wheelRadius,
         vehicleParams.wheelRadius,
         vehicleParams.wheelThickness,
         32
     );
+    // Rotate geometry to align with Cannon.js wheel orientation
+    wheelGeometry.rotateZ(Math.PI / 2);
+
     const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
 
     const wheelMeshes = [];
     for (let i = 0; i < 4; i++) {
         const wheelMesh = new THREE.Mesh(wheelGeometry, wheelMaterial);
-        wheelMesh.rotation.z = Math.PI / 2;
         wheelMesh.castShadow = true;
         scene.add(wheelMesh);
         wheelMeshes.push(wheelMesh);
